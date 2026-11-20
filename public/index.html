@@ -39,7 +39,45 @@ function clock(){$("clock").textContent=`${Math.floor(seconds/60)}:${String(seco
 function renderQ(){let q=quiz[pos];locked=false;$("quizProgress").textContent=`Câu ${pos+1}/${quiz.length}`;$("quizChapter").textContent=q.chapter;$("quizStatus").textContent=`Đã trả lời ${answers.filter(x=>x.selected_index!==null).length}/${quiz.length}`;$("questionArea").innerHTML=`<h3 style="line-height:1.6;margin:24px 0">${q.question}</h3>${q.options.map((o,i)=>`<button class="option" data-answer="${i}"><b>${"ABCD"[i]}.</b> ${o.v}</button>`).join("")}<div id="feedback"></div>`;document.querySelectorAll("[data-answer]").forEach(b=>b.onclick=()=>choose(+b.dataset.answer));$("next").textContent=pos===quiz.length-1?"Nộp bài":"Câu tiếp theo →"}
 function choose(i){if(locked)return;locked=true;let q=quiz[pos],selected=q.options[i].old;answers[pos]={question_id:q.id,selected_index:selected};document.querySelectorAll("[data-answer]").forEach(b=>b.disabled=true);$("feedback").innerHTML=`<p class="hint">Đã ghi nhận lựa chọn. Phần giải thích sẽ hiển thị sau khi nộp bài để mô phỏng bài thi.</p>`;$("quizStatus").textContent=`Đã trả lời ${answers.length}/${quiz.length}`}
 $("next").onclick=()=>{if(pos<quiz.length-1){if(!answers[pos])answers[pos]={question_id:quiz[pos].id,selected_index:null};pos++;renderQ()}else finishQuiz()};
-async function finishQuiz(){clearInterval(timer);if(!quiz.length)return;for(let i=0;i<quiz.length;i++)if(!answers[i])answers[i]={question_id:quiz[i].id,selected_index:null};try{const result=await api("/attempts",{method:"POST",body:JSON.stringify({answers,total:quiz.length,duration_seconds:Math.round((Date.now()-started)/1000)})});const details=quiz.map((q,i)=>{let a=answers[i],right=q.options.findIndex(o=>o.old===q.options.findIndex(x=>x.old===x.old));let correct=q.options.findIndex(o=>o.old===q.options.find(x=>x.old===o.old)?.old);return {q,a,correct:q.options.findIndex(o=>o.old===q.options.find(x=>x.old===o.old)?.old)}});let correctMap=new Map(qs.map(q=>[q.id,q]));$("questionArea").innerHTML=`<h2>Kết quả: ${result.correct}/${result.total} câu đúng</h2><h1 style="color:#059669">${result.score}/10 điểm</h1><p>Thời gian: ${Math.round((Date.now()-started)/1000)} giây</p><div id="review"></div>`;$("quizStatus").textContent="Kết quả đã được lưu.";for(let i=0;i<quiz.length;i++){let base=correctMap.get(quiz[i].id),a=answers[i];$("review").insertAdjacentHTML("beforeend",`<div class="tableline" style="display:block"><b>${i+1}. ${base.question}</b><p class="hint">Bạn chọn: ${a.selected_index===null?"Bỏ trống":base.options[a.selected_index]} · Đáp án đúng: ${base.options[base.correct_index]}</p><div class="explain">${base.explanation}</div></div>`)}$("next").classList.add("hidden")}catch(e){$("quizStatus").textContent=e.message}}
+async function finishQuiz() {
+  clearInterval(timer);
+  if (!quiz.length) return;
+  for (let i = 0; i < quiz.length; i++) {
+    if (!answers[i]) answers[i] = { question_id: quiz[i].id, selected_index: null };
+  }
+  try {
+    const result = await api("/attempts", {
+      method: "POST",
+      body: JSON.stringify({
+        answers,
+        total: quiz.length,
+        duration_seconds: Math.round((Date.now() - started) / 1000)
+      })
+    });
+
+    const correctMap = new Map(qs.map(q => [q.id, q]));
+    const detailMap = new Map((result.details || []).map(d => [d.question_id, d]));
+
+    $("questionArea").innerHTML = `<h2>Kết quả: ${result.correct}/${result.total} câu đúng</h2><h1 style="color:#059669">${result.score}/10 điểm</h1><p>Thời gian: ${Math.round((Date.now() - started) / 1000)} giây</p><div id="review"></div>`;
+    $("quizStatus").textContent = "Kết quả đã được lưu.";
+
+    for (let i = 0; i < quiz.length; i++) {
+      const base = correctMap.get(quiz[i].id);
+      const detail = detailMap.get(quiz[i].id) || {};
+      const a = answers[i];
+      $("review").insertAdjacentHTML("beforeend", `
+        <div class="tableline" style="display:block">
+          <b>${i + 1}. ${base.question}</b>
+          <p class="hint">Bạn chọn: ${a.selected_index === null ? "Bỏ trống" : base.options[a.selected_index]} · Đáp án đúng: ${base.options[detail.correct_index]}</p>
+          <div class="explain">${detail.explanation || ""}</div>
+        </div>
+      `);
+    }
+    $("next").classList.add("hidden");
+  } catch (e) {
+    $("quizStatus").textContent = e.message;
+  }
+}
 async function loadHistory(){try{let a=await api("/attempts");$("history").innerHTML=a.length?a.map(x=>`<div class="tableline"><span>${x.created_at}${x.username?" · "+x.username:""}</span><b>${x.correct}/${x.total} · ${(x.correct/x.total*10).toFixed(1)}/10</b></div>`).join(""):"Chưa có lần thi nào."}catch(e){$("history").textContent=e.message}}
 async function loadAdmin(){if(me.role!=="admin")return;let [users,questions]=await Promise.all([api("/admin/users"),api("/admin/questions")]);$("users").innerHTML="<h4>Tài khoản</h4>"+users.map(u=>`<div class="tableline"><span>${u.username} · ${u.role}</span>${u.role==="student"?`<button class="btn red" onclick="delUser(${u.id})">Xóa</button>`:""}</div>`).join("");$("adminQuestions").innerHTML=questions.map(q=>`<div class="tableline"><span><b>${q.question}</b><br><small>${q.chapter}</small></span><span style="white-space:nowrap"><button class="btn ghost" onclick="editQ(${q.id})">Sửa</button> <button class="btn red" onclick="delQ(${q.id})">Xóa</button></span></div>`).join("")}
 $("userForm").onsubmit=async e=>{e.preventDefault();try{await api("/admin/users",{method:"POST",body:JSON.stringify({username:$("newUsername").value,password:$("newPassword").value})});e.target.reset();loadAdmin();alert("Đã tạo tài khoản.")}catch(e){alert(e.message)}};
