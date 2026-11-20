@@ -103,14 +103,37 @@ app.delete("/api/admin/users/:id",requireAuth,requireAdmin,(req,res)=>{
  });
  remove();res.json({ok:true});
 });
-app.post("/api/attempts",requireAuth,(req,res)=>{
- const {answers,total,duration_seconds}=req.body||{};
- if(!Array.isArray(answers)||!Number.isInteger(total)||total<1||answers.length!==total)return res.status(400).json({error:"Dữ liệu bài thi không hợp lệ."});
- let correct=0;
- const normalized=answers.map(a=>{const q=db.prepare("SELECT id,correct_index FROM questions WHERE id=? AND active=1").get(a.question_id);if(!q)return null;if(a.selected_index===q.correct_index)correct++;return {question_id:q.id,selected_index:a.selected_index,correct_index:q.correct_index};});
- if(normalized.some(x=>!x))return res.status(400).json({error:"Bài thi có câu hỏi không còn tồn tại."});
- const info=db.prepare("INSERT INTO attempts(user_id,total,correct,duration_seconds,answers) VALUES(?,?,?,?,?)").run(req.session.user.id,total,correct,Math.max(0,Number(duration_seconds)||0),JSON.stringify(normalized));
- res.json({id:info.lastInsertRowid,correct,total,score:Math.round(correct/total*10*10)/10});
+app.post("/api/attempts", requireAuth, (req, res) => {
+  const { answers, total, duration_seconds } = req.body || {};
+  if (!Array.isArray(answers) || !Number.isInteger(total) || total < 1 || answers.length !== total) {
+    return res.status(400).json({ error: "Dữ liệu bài thi không hợp lệ." });
+  }
+  let correct = 0;
+  const details = [];
+  const normalized = answers.map(a => {
+    const q = db.prepare("SELECT id, correct_index, explanation FROM questions WHERE id=? AND active=1").get(a.question_id);
+    if (!q) return null;
+    if (a.selected_index === q.correct_index) correct++;
+    details.push({
+      question_id: q.id,
+      correct_index: q.correct_index,
+      explanation: q.explanation
+    });
+    return { question_id: q.id, selected_index: a.selected_index, correct_index: q.correct_index };
+  });
+  if (normalized.some(x => !x)) {
+    return res.status(400).json({ error: "Bài thi có câu hỏi không còn tồn tại." });
+  }
+  const info = db.prepare("INSERT INTO attempts(user_id,total,correct,duration_seconds,answers) VALUES(?,?,?,?,?)")
+    .run(req.session.user.id, total, correct, Math.max(0, Number(duration_seconds) || 0), JSON.stringify(normalized));
+  
+  res.json({
+    id: info.lastInsertRowid,
+    correct,
+    total,
+    score: Math.round(correct / total * 10 * 10) / 10,
+    details // Trả thêm chi tiết đáp án đúng & giải thích về cho Frontend
+  });
 });
 app.get("/api/attempts",requireAuth,(req,res)=>{
  const rows=req.session.user.role==="admin"
