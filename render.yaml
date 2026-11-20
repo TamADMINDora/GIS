@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: geolearn-online
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    disk:
+      name: geolearn-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: DB_PATH
+        value: /var/data/geolearn.sqlite
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
