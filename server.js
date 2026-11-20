@@ -1,5 +1,5 @@
 const express = require("express");
-app.set("trust proxy", 1);
+
 const session = require("express-session");
 const SQLiteStore = require("connect-sqlite3")(session);
 const Database = require("better-sqlite3");
@@ -8,6 +8,7 @@ const helmet = require("helmet");
 const path = require("path");
 
 const app = express();
+app.set("trust proxy", 1);
 const db = new Database(process.env.DB_PATH || path.join(__dirname, "geolearn.sqlite"));
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
